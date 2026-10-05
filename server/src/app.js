@@ -2,6 +2,7 @@ import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import express from 'express';
 import helmet from 'helmet';
+import mongoose from 'mongoose';
 import { rateLimit } from 'express-rate-limit';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -32,7 +33,17 @@ app.use('/api/v1', (req, res, next) => {
   next();
 });
 
-app.get('/api/v1/health', (_req, res) => res.json({ status: 'ok', service: 'careeros-api' }));
+app.get('/api/v1/health', async (_req, res) => {
+  if (mongoose.connection.readyState !== 1 || !mongoose.connection.db) {
+    return res.status(503).json({ status: 'unavailable', service: 'careeros-api', database: 'disconnected' });
+  }
+  try {
+    await mongoose.connection.db.admin().ping();
+    res.json({ status: 'ok', service: 'careeros-api', database: 'connected' });
+  } catch {
+    res.status(503).json({ status: 'unavailable', service: 'careeros-api', database: 'unreachable' });
+  }
+});
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/resumes', resumeRoutes);
 app.use('/api/v1/applications', applicationRoutes);

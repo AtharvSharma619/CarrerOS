@@ -52,6 +52,8 @@ Open this whole folder in VS Code using **File → Open Folder**. If the `code` 
 | `npm run build` | Create the client production build in `client/dist` |
 | `npm run start --workspace=server` | Start the API without file watching |
 
+GitHub Actions automatically runs the client production build and checks server JavaScript syntax on pushes and pull requests to `main`. The `/api/v1/health` endpoint returns an error status when the database cannot be reached so container hosts can detect a broken deployment.
+
 ## Deploying a private beta
 
 The Docker image builds the React client and serves it with Express from one HTTPS origin, which keeps session cookies same-site. Build it with `docker build -t careeros .` and deploy the image to a container host. Set these environment variables on the host:
