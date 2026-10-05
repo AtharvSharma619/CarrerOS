@@ -40,6 +40,7 @@ function App() {
   const [dashboard, setDashboard] = useState(null);
   const [applications, setApplications] = useState([]);
   const [resumes, setResumes] = useState([]);
+  const [aiUsage, setAiUsage] = useState(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [modal, setModal] = useState('');
@@ -56,8 +57,8 @@ function App() {
   const refresh = useCallback(async () => {
     setBusy(true); setError('');
     try {
-      const [dash, appData, resumeData] = await Promise.all([api('/dashboard'), api('/applications'), api('/resumes')]);
-      setDashboard(dash); setApplications(appData.applications); setResumes(resumeData.resumes);
+      const [dash, appData, resumeData, usageData] = await Promise.all([api('/dashboard'), api('/applications'), api('/resumes'), api('/ai/usage')]);
+      setDashboard(dash); setApplications(appData.applications); setResumes(resumeData.resumes); setAiUsage(usageData.usage);
     } catch (err) { setError(err.message); }
     finally { setBusy(false); }
   }, []);
@@ -225,6 +226,7 @@ function App() {
       const route = kind === 'analyze' ? `/ai/resumes/${resume._id}/analyze` : `/ai/resumes/${resume._id}/tailor`;
       const data = await api(route, { method: 'POST', body: JSON.stringify({ jobDescription }) });
       setAiResult(data.result);
+      const usageData = await api('/ai/usage'); setAiUsage(usageData.usage);
     } catch (err) { setAiError(err.message); }
     finally { setAiBusy(false); }
   }
@@ -240,6 +242,7 @@ function App() {
     try {
       const data = await api('/ai/applications/cover-letter', { method: 'POST', body: JSON.stringify({ resumeId: resume._id, application: { company: applicationDraft.company, role: applicationDraft.role }, jobDescription }) });
       setAiResult(data.result);
+      const usageData = await api('/ai/usage'); setAiUsage(usageData.usage);
     } catch (err) { setAiError(err.message); }
     finally { setAiBusy(false); }
   }
@@ -252,7 +255,7 @@ function App() {
       await api(`/applications/${selectedApplication._id}`, { method: 'PATCH', body: JSON.stringify(applicationDraft) });
       const endpoint = kind === 'cover-letter' ? 'cover-letter' : 'tailor';
       const data = await api(`/ai/applications/${selectedApplication._id}/${endpoint}`, { method: 'POST', body: JSON.stringify({ resumeId: applicationDraft.resume }) });
-      setAiResult(data.result);
+      setAiResult(data.result); if (data.usage) setAiUsage(data.usage);
       setApplicationDraft((draft) => ({ ...draft, [kind === 'cover-letter' ? 'coverLetter' : 'tailoredSuggestions']: data.result }));
       setSelectedApplication(data.application);
       await refresh();
@@ -273,7 +276,7 @@ function App() {
       <div className="nav-label">MENU</div><nav aria-label="Main navigation">
         {[['Overview', LayoutDashboard], ['My resumes', FileText], ['Applications', BriefcaseBusiness]].map(([label, Icon]) => <button key={label} className={`nav-item ${active === label ? 'selected' : ''}`} onClick={() => setActive(label)}><Icon size={17}/><span>{label}</span>{label === 'Applications' && applications.length > 0 && <small>{applications.length}</small>}</button>)}
       </nav>
-      <div className="sidebar-bottom"><div className="upgrade-card"><div className="upgrade-icon"><Sparkles size={15}/></div><strong>Make your next move</strong><p>Get more from every application with thoughtful AI tools.</p><button onClick={() => { setSelectedApplication(null); setModal('cover'); }}>Try AI tools <ArrowRight size={14}/></button></div><button className="nav-item help" onClick={() => setModal('help')}><CircleHelp size={17}/><span>Help & support</span></button><button className="nav-item logout-button" onClick={logout}><LogOut size={16}/><span>Sign out</span></button><div className="sidebar-foot">CAREEROS <span>·</span> YOUR CAREER, IN MOTION</div></div>
+      <div className="sidebar-bottom"><div className="upgrade-card"><div className="upgrade-icon"><Sparkles size={15}/></div><strong>Make your next move</strong><p>Get more from every application with thoughtful AI tools.</p>{aiUsage && <small className="ai-usage-count">AI drafts this month: {aiUsage.remaining} of {aiUsage.limit} left</small>}<button onClick={() => { setSelectedApplication(null); setModal('cover'); }}>Try AI tools <ArrowRight size={14}/></button></div><button className="nav-item help" onClick={() => setModal('help')}><CircleHelp size={17}/><span>Help & support</span></button><button className="nav-item logout-button" onClick={logout}><LogOut size={16}/><span>Sign out</span></button><div className="sidebar-foot">CAREEROS <span>·</span> YOUR CAREER, IN MOTION</div></div>
     </aside>
     <main className="main-area">
       <header className="topbar"><div className="breadcrumb">Workspace <span>/</span> <strong>{active}</strong></div><div className="top-actions"><button className="icon-button" aria-label="Search" onClick={() => document.querySelector('.search-input')?.focus()}><Search size={17}/></button><div className="top-avatar">{user.name.split(' ').map((part) => part[0]).join('').slice(0, 2).toUpperCase()}</div></div></header>

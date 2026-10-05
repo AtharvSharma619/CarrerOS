@@ -52,6 +52,6 @@ if (env.nodeEnv === 'production') {
 app.use((error, _req, res, _next) => {
   console.error(error);
   const status = error.status || (['ValidationError', 'CastError'].includes(error.name) ? 400 : error.code === 11000 ? 409 : 500);
-  const code = error.code === 'AI_NOT_CONFIGURED' || error.code === 'AI_PROVIDER_ERROR' ? error.code : status === 500 ? 'INTERNAL_ERROR' : 'REQUEST_ERROR';
+  const code = ['AI_NOT_CONFIGURED', 'AI_PROVIDER_ERROR', 'AI_USAGE_LIMIT'].includes(error.code) ? error.code : status === 500 ? 'INTERNAL_ERROR' : 'REQUEST_ERROR';
   res.status(status).json({ error: { code, message: status === 500 && code === 'INTERNAL_ERROR' ? 'Something went wrong.' : error.message } });
 });

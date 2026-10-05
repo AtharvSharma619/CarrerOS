@@ -61,11 +61,11 @@ The Docker image builds the React client and serves it with Express from one HTT
 - `NODE_ENV=production`, `PORT` (when provided by the host), `CLIENT_ORIGIN=https://your-domain`, and `APP_BASE_URL=https://your-domain`.
 - `RESEND_API_KEY`, `REQUIRE_EMAIL_VERIFICATION=true`, and `EMAIL_FROM` on a domain verified with Resend. Production startup requires these account email settings; the app sends signup verification and password reset links through Resend's [email API](https://resend.com/docs/api-reference/emails/send-email).
 - `TRUST_PROXY_HOPS=1` when the container host sits behind one trusted reverse proxy; adjust to the host's documented proxy chain.
-- Optional `OPENAI_API_KEY` and `OPENAI_MODEL` for AI features.
+- Optional `OPENAI_API_KEY` and `OPENAI_MODEL` for AI features. `AI_MONTHLY_REQUEST_LIMIT` sets the per-account monthly request cap (default: 25).
 
-Configure Atlas network access for the container host, not a developer laptop. Keep the origin restricted to the deployed site. The API rate-limits sign-in, password recovery, and AI requests; the account model supports user data export and deletion.
+Configure Atlas network access for the container host, not a developer laptop. Keep the origin restricted to the deployed site. The API rate-limits sign-in, password recovery, and AI requests; AI usage is also capped per account each month and shown in the workspace. The cap defaults to 25 requests per UTC calendar month and can be changed with `AI_MONTHLY_REQUEST_LIMIT`. The account model supports user data export and deletion.
 
-Before a wider public launch, add email verification or another signup abuse barrier, durable per-account AI usage/cost limits, production monitoring/alerts, and a complete privacy notice explaining third-party AI processing. Confirm account isolation, reset-email delivery, and cookie behavior on the deployed domain.
+Before a wider public launch, configure and verify email delivery, add production monitoring/alerts, publish a complete privacy notice explaining third-party AI processing, and confirm account isolation, reset-email delivery, and cookie behavior on the deployed domain.
 
 ## GitHub portfolio setup
 

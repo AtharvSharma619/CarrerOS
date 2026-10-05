@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import User from '../models/User.js';
 import Resume from '../models/Resume.js';
 import Application from '../models/Application.js';
+import AiUsage from '../models/AiUsage.js';
 import { cookieOptions, requireAuth } from '../middleware/auth.js';
 
 const router = Router();
@@ -31,6 +32,7 @@ router.delete('/', async (req, res, next) => {
     await Promise.all([
       Resume.deleteMany({ owner: user._id }),
       Application.deleteMany({ owner: user._id }),
+      AiUsage.deleteMany({ owner: user._id }),
     ]);
     await User.deleteOne({ _id: user._id });
     res.clearCookie('careeros_session', cookieOptions);
