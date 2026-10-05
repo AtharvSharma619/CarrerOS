@@ -33,6 +33,7 @@ app.use('/api/v1', (req, res, next) => {
   next();
 });
 
+app.get('/api/v1/public-config', (_req, res) => res.json({ supportEmail: env.supportEmail }));
 app.get('/api/v1/health', async (_req, res) => {
   if (mongoose.connection.readyState !== 1 || !mongoose.connection.db) {
     return res.status(503).json({ status: 'unavailable', service: 'careeros-api', database: 'disconnected' });

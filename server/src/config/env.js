@@ -22,6 +22,7 @@ export const env = {
   aiMonthlyRequestLimit: Number(process.env.AI_MONTHLY_REQUEST_LIMIT || 25),
   resendApiKey: process.env.RESEND_API_KEY || '',
   emailFrom: process.env.EMAIL_FROM || (process.env.NODE_ENV === 'production' ? '' : 'CareerOS <onboarding@resend.dev>'),
+  supportEmail: process.env.SUPPORT_EMAIL || '',
   appBaseUrl: process.env.APP_BASE_URL || 'http://localhost:5173',
   requireEmailVerification: process.env.REQUIRE_EMAIL_VERIFICATION === 'true',
 };
@@ -33,6 +34,7 @@ if (!Number.isInteger(env.aiMonthlyRequestLimit) || env.aiMonthlyRequestLimit < 
 if (env.nodeEnv === 'production') {
   if (!env.resendApiKey) throw new Error('RESEND_API_KEY is required in production so users can recover their accounts.');
   if (!env.emailFrom) throw new Error('EMAIL_FROM must use a sender address on a verified email domain in production.');
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(env.supportEmail)) throw new Error('SUPPORT_EMAIL must be set to a monitored contact address in production.');
   if (!env.requireEmailVerification) throw new Error('REQUIRE_EMAIL_VERIFICATION=true is required in production.');
   if (!env.appBaseUrl.startsWith('https://') || !env.clientOrigin.startsWith('https://')) throw new Error('APP_BASE_URL and CLIENT_ORIGIN must use HTTPS in production.');
 }

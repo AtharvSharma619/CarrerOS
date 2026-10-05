@@ -41,6 +41,7 @@ function App() {
   const [applications, setApplications] = useState([]);
   const [resumes, setResumes] = useState([]);
   const [aiUsage, setAiUsage] = useState(null);
+  const [supportEmail, setSupportEmail] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [modal, setModal] = useState('');
@@ -64,6 +65,7 @@ function App() {
   }, []);
 
   useEffect(() => {
+    api('/public-config').then((config) => setSupportEmail(config.supportEmail || '')).catch(() => {});
     const query = new URLSearchParams(window.location.search);
     if (query.has('token')) { setReady(true); return; }
     if (query.has('verify')) {
@@ -264,7 +266,7 @@ function App() {
   }
 
   if (!ready) return <div className="loading-screen"><div className="brand-mark"><Target size={18}/></div><span>Getting your workspace ready…</span></div>;
-  if (!user) return <AuthScreen mode={authMode} setMode={(mode) => { setAuthError(''); setAuthNotice(''); setVerificationNeeded(false); setAuthMode(mode); }} onSubmit={submitAuth} error={authError} notice={authNotice} busy={authBusy} email={authEmail} setEmail={setAuthEmail} verificationNeeded={verificationNeeded} onResend={resendVerification}/>;
+  if (!user) return <AuthScreen mode={authMode} setMode={(mode) => { setAuthError(''); setAuthNotice(''); setVerificationNeeded(false); setAuthMode(mode); }} onSubmit={submitAuth} error={authError} notice={authNotice} busy={authBusy} email={authEmail} setEmail={setAuthEmail} verificationNeeded={verificationNeeded} onResend={resendVerification} supportEmail={supportEmail}/>;
 
   const today = new Intl.DateTimeFormat('en', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }).format(new Date()).toUpperCase();
   const stats = dashboard?.stats || { activeApplications: 0, interviews: 0, profileStrength: 0, resumeCount: 0, applicationCount: 0 };
@@ -323,7 +325,8 @@ function App() {
     {modal === 'ai-choice' && <div className="modal-backdrop" onClick={() => setModal('')}><div className="modal" role="dialog" aria-modal="true" aria-labelledby="choice-title" onClick={(event) => event.stopPropagation()}><button className="modal-close" onClick={() => setModal('')} aria-label="Close"><X size={18}/></button><div className="stat-icon lilac"><Sparkles size={18}/></div><h2 id="choice-title">Give your resume a closer look</h2><p className="modal-intro">Choose a helpful next step. Suggestions are drafts for you to review.</p><button className="choice-button" onClick={() => runAi('analyze', resumeDraft)}><span><b>Review my resume</b><small>Get clarity, impact, and ATS readability feedback</small></span><ArrowRight size={15}/></button><button className="choice-button" onClick={() => { setModal('tailor'); setAiResult(''); setAiError(''); }}><span><b>Tailor to a job</b><small>Compare your resume with a job description</small></span><ArrowRight size={15}/></button></div></div>}
 
     {modal === 'preview' && resumeDraft && <div className="modal-backdrop preview-backdrop" onClick={() => setModal('')}><div className="print-preview" role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()}><div className="preview-toolbar"><span>Resume preview</span><div><button className="secondary-button" onClick={() => window.print()}>Print / Save PDF</button><button className="modal-close" onClick={() => setModal('')} aria-label="Close"><X size={18}/></button></div></div><ResumePreview resume={resumeDraft}/></div></div>}
-    {modal === 'help' && <div className="modal-backdrop" onClick={() => setModal('')}><div className="modal" role="dialog" aria-modal="true" aria-labelledby="help-title"><button className="modal-close" onClick={() => setModal('')} aria-label="Close"><X size={18}/></button><div className="stat-icon mint"><CircleHelp size={18}/></div><h2 id="help-title">CareerOS help & privacy</h2><p className="modal-intro">Your account, resumes, and applications are private. When you request AI help, the resume and job description are sent to the AI provider configured by this app. Review generated suggestions before using them. You can export or permanently delete your data below.</p><div className="account-actions"><button className="secondary-button" onClick={downloadAccountData}>Download my data</button><button className="danger-button" onClick={deleteAccount}>Delete my account</button></div><button className="primary-button help-done" onClick={() => setModal('')}>Done <Check size={15}/></button></div></div>}
+    {modal === 'privacy' && <div className="modal-backdrop" onClick={() => setModal('help')}><div className="modal wide-modal privacy-modal" role="dialog" aria-modal="true" aria-labelledby="privacy-title" onClick={(event) => event.stopPropagation()}><button className="modal-close" onClick={() => setModal('help')} aria-label="Close"><X size={18}/></button><PrivacyDetails supportEmail={supportEmail}/><button className="primary-button help-done" onClick={() => setModal('help')}>Back to help <ArrowRight size={15}/></button></div></div>}
+    {modal === 'help' && <div className="modal-backdrop" onClick={() => setModal('')}><div className="modal" role="dialog" aria-modal="true" aria-labelledby="help-title"><button className="modal-close" onClick={() => setModal('')} aria-label="Close"><X size={18}/></button><div className="stat-icon mint"><CircleHelp size={18}/></div><h2 id="help-title">CareerOS help & privacy</h2><p className="modal-intro">Your account, resumes, and applications are private. When you request AI help, the resume and job description are sent to the AI provider configured by this app. Review generated suggestions before using them. You can export or permanently delete your data below.</p><div className="account-actions"><button className="secondary-button" onClick={downloadAccountData}>Download my data</button><button className="danger-button" onClick={deleteAccount}>Delete my account</button></div><button className="secondary-button privacy-open" onClick={() => setModal('privacy')}>Read privacy details</button><button className="primary-button help-done" onClick={() => setModal('')}>Done <Check size={15}/></button></div></div>}
   </div>;
 }
 
@@ -353,8 +356,9 @@ function JobCapture({ onCapture }) {
   </section>;
 }
 
-function AuthScreen({ mode, setMode, onSubmit, error, notice, busy, email, setEmail, verificationNeeded, onResend }) {
+function AuthScreen({ mode, setMode, onSubmit, error, notice, busy, email, setEmail, verificationNeeded, onResend, supportEmail }) {
   if (mode === 'landing') return <LandingPage setMode={setMode}/>;
+  if (mode === 'privacy') return <PrivacyPage supportEmail={supportEmail} onBack={() => setMode('landing')}/>;
   const heading = mode === 'register' ? 'Make your next move.' : mode === 'forgot' ? 'Reset your password.' : mode === 'reset' ? 'Choose a new password.' : 'Welcome back.';
   const description = mode === 'register' ? 'Create your free workspace and get organized.' : mode === 'forgot' ? 'We’ll email you a secure link if an account matches.' : mode === 'reset' ? 'Choose a new password for your CareerOS account.' : 'Sign in to pick up where you left off.';
   const submitLabel = mode === 'register' ? 'Create account' : mode === 'forgot' ? 'Send reset link' : mode === 'reset' ? 'Save new password' : 'Sign in';
@@ -391,6 +395,25 @@ function AuthScreen({ mode, setMode, onSubmit, error, notice, busy, email, setEm
   );
 }
 
+function PrivacyDetails({ supportEmail }) {
+  return <>
+    <div className="section-kicker">YOUR DATA, EXPLAINED</div><h2 id="privacy-title">CareerOS privacy notice</h2>
+    <p className="modal-intro">Last updated October 5, 2026. This notice describes the current CareerOS app. The service operator should review and adapt it for the places where the service is offered before public launch.</p>
+    <div className="privacy-sections">
+      <section><h3>What CareerOS stores</h3><p>Your account name, email address, and a password hash; resume profile details; saved job links and descriptions; application status, notes, and follow-up dates; and any cover-letter or tailoring drafts saved to an opportunity. CareerOS does not store your password in readable form.</p></section>
+      <section><h3>How your information is used</h3><p>CareerOS uses this information to provide your account, resume workspace, application tracker, follow-up list, account recovery, and requested writing features. Your account data is separated by account in the application database.</p></section>
+      <section><h3>When information goes to other providers</h3><p>When you ask for AI feedback or a draft, CareerOS sends the relevant resume text and job details to OpenAI through its API. Resume text can contain your name and contact details. Application-based cover letters can also include your saved notes. AI feedback that is not saved to an opportunity remains in your current browser session; drafts requested from an opportunity are saved to that opportunity.</p><p>OpenAI says API data is not used to train its models by default; its default abuse-monitoring logs may retain prompts and responses for up to 30 days, subject to exceptions. See <a href="https://developers.openai.com/api/docs/guides/your-data" target="_blank" rel="noreferrer">OpenAI API data controls</a> for current details.</p><p>For account verification and password recovery, CareerOS sends your email address and a single-use link to Resend. These emails do not include your resume or job application content.</p></section>
+      <section><h3>Storage, access, and deletion</h3><p>Your account and career information are stored in the MongoDB database configured for this CareerOS deployment. You can export your account data or permanently delete your account from Help &amp; privacy. Deletion removes your account, resumes, applications, and AI usage records from the active application database. The database operator’s backup retention settings may affect when backup copies expire.</p></section>
+      <section><h3>Sessions and technical limits</h3><p>CareerOS uses a seven-day HttpOnly session cookie to keep you signed in. AI requests are rate-limited and subject to a monthly per-account limit. Hosting, database, and email providers may process technical information needed to operate their services under their own terms.</p></section>
+      <section><h3>Questions</h3>{supportEmail ? <p>Contact the CareerOS operator at <a href={`mailto:${supportEmail}`}>{supportEmail}</a>.</p> : <p>The operator must configure a monitored support email before public launch. A contact address is not configured in this local copy.</p>}</section>
+    </div>
+  </>;
+}
+
+function PrivacyPage({ supportEmail, onBack }) {
+  return <div className="privacy-page"><header><a className="brand" href="#home"><span className="brand-mark"><Target size={18}/></span><span>career<span className="brand-light">OS</span></span></a><button className="secondary-button" onClick={onBack}>Back to CareerOS</button></header><main className="privacy-card"><PrivacyDetails supportEmail={supportEmail}/><p className="privacy-review-note">This is an operational privacy notice, not a statement of legal compliance. The operator must review it for applicable law, actual hosting and retention settings, and the final contact details before inviting the public.</p></main></div>;
+}
+
 function LandingPage({ setMode }) {
   return (
     <div className="landing-page">
@@ -405,7 +428,7 @@ function LandingPage({ setMode }) {
         </section>
         <section className="landing-features" id="how-it-works"><div className="landing-section-heading"><div className="section-kicker">A WORKSPACE THAT MOVES WITH YOU</div><h2>From saved role to next step.</h2></div><div className="landing-feature-grid"><article><span className="feature-icon"><BriefcaseBusiness size={18}/></span><h3>Keep each opportunity together</h3><p>Save the job description, your notes, chosen resume, and a clear follow-up date.</p></article><article><span className="feature-icon"><FileText size={18}/></span><h3>Tell your story with care</h3><p>Build a readable resume, then create role-specific drafts that stay grounded in your experience.</p></article><article><span className="feature-icon"><Target size={18}/></span><h3>Make progress visible</h3><p>See your pipeline, interviews, and upcoming follow-ups without losing your place.</p></article></div></section>
       </main>
-      <footer className="landing-footer"><span>CareerOS · Made for the journey</span><span>Your information belongs to you. Export or delete it from your account.</span></footer>
+      <footer className="landing-footer"><span>CareerOS · Made for the journey <button onClick={() => setMode('privacy')}>Privacy</button></span><span>Your information belongs to you. Export or delete it from your account.</span></footer>
     </div>
   );
 }

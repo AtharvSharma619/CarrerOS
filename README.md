@@ -32,7 +32,7 @@ Requirements: Node.js 20 or newer and MongoDB. MongoDB Atlas is an easy hosted o
 
 1. Create a database user and add your current IP address to the Atlas project's IP access list. Copy the Node.js driver connection string.
 2. Copy `server/.env.example` to `server/.env` and fill in `MONGODB_URI` and a random `JWT_SECRET` of at least 32 characters. Use the `careeros` database in the URI. Keep `.env` private; it is ignored by Git. Existing local `.env` files should be preserved.
-3. Optional: add `OPENAI_API_KEY` to enable AI feedback and writing. Add `RESEND_API_KEY` and a sender in `EMAIL_FROM` to enable email verification and password recovery locally. The core account, resume, and application features work without either provider.
+3. Optional: add `OPENAI_API_KEY` to enable AI feedback and writing. Add `RESEND_API_KEY` and a sender in `EMAIL_FROM` to enable email verification and password recovery locally. Set `SUPPORT_EMAIL` to a monitored inbox before production. The core account, resume, and application features work without either provider.
 4. Run `npm install` from the repository root, then `npm run dev`.
 5. Open `http://localhost:5173`. Express listens on `http://localhost:4000`.
 
@@ -61,13 +61,13 @@ The Docker image builds the React client and serves it with Express from one HTT
 - `MONGODB_URI`: Atlas connection string with the `careeros` database name.
 - `JWT_SECRET`: unique random value of at least 32 characters.
 - `NODE_ENV=production`, `PORT` (when provided by the host), `CLIENT_ORIGIN=https://your-domain`, and `APP_BASE_URL=https://your-domain`.
-- `RESEND_API_KEY`, `REQUIRE_EMAIL_VERIFICATION=true`, and `EMAIL_FROM` on a domain verified with Resend. Production startup requires these account email settings; the app sends signup verification and password reset links through Resend's [email API](https://resend.com/docs/api-reference/emails/send-email).
+- `RESEND_API_KEY`, `REQUIRE_EMAIL_VERIFICATION=true`, and `EMAIL_FROM` on a domain verified with Resend; set `SUPPORT_EMAIL` to an inbox someone monitors. Production startup requires these account email settings; the app sends signup verification and password reset links through Resend's [email API](https://resend.com/docs/api-reference/emails/send-email).
 - `TRUST_PROXY_HOPS=1` when the container host sits behind one trusted reverse proxy; adjust to the host's documented proxy chain.
 - Optional `OPENAI_API_KEY` and `OPENAI_MODEL` for AI features. `AI_MONTHLY_REQUEST_LIMIT` sets the per-account monthly request cap (default: 25).
 
 Configure Atlas network access for the container host, not a developer laptop. Keep the origin restricted to the deployed site. The API rate-limits sign-in, password recovery, and AI requests; AI usage is also capped per account each month and shown in the workspace. The cap defaults to 25 requests per UTC calendar month and can be changed with `AI_MONTHLY_REQUEST_LIMIT`. The account model supports user data export and deletion.
 
-Before a wider public launch, configure and verify email delivery, add production monitoring/alerts, publish a complete privacy notice explaining third-party AI processing, and confirm account isolation, reset-email delivery, and cookie behavior on the deployed domain.
+Before a wider public launch, configure and verify email delivery, add production monitoring/alerts, review the in-app privacy notice for the operating jurisdiction, and confirm account isolation, reset-email delivery, and cookie behavior on the deployed domain.
 
 ## GitHub portfolio setup
 
