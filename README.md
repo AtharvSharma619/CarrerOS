@@ -9,6 +9,8 @@ CareerOS gives early-career job seekers one place to prepare an application and 
 - Resume editor with repeatable work and education entries, classic and modern print styles, browser print-to-PDF, and AI feedback.
 - Application workspace with status, source link, saved job description, notes, linked resume, editable cover-letter/tailoring drafts, and follow-up date.
 - Dashboard with application progress, profile completeness, and an actionable upcoming follow-up list.
+- Public interactive sample workspace with fictional data; its preview controls do not write to the API or call AI.
+- Public pricing preview for a free plan and a proposed CareerOS Plus plan. Checkout is not active and paid limits are not implemented.
 - Optional AI cover letters and role-specific resume suggestions. Outputs are editable drafts; the prompts prohibit adding qualifications or facts that are not in the user's material.
 - User-owned database queries, server-side validation, authentication/AI rate limits, account data export, and permanent account deletion.
 
@@ -36,6 +38,8 @@ Requirements: Node.js 20 or newer and MongoDB. MongoDB Atlas is an easy hosted o
 4. Run `npm install` from the repository root, then `npm run dev`.
 5. Open `http://localhost:5173`. Express listens on `http://localhost:4000`.
 
+To preview the product as a visitor, open the local site and choose **Explore the demo**. The demo works without signing up and uses fictional sample data. Use **Create account** to switch from the demo to your own saved workspace.
+
 To use local MongoDB through Docker, run `docker compose up -d mongodb` and keep the example local URI. Stop the app with Control+C.
 
 ## VS Code
@@ -56,7 +60,19 @@ GitHub Actions automatically runs the client production build and checks server 
 
 ## Deploying a private beta
 
-The Docker image builds the React client and serves it with Express from one HTTPS origin, which keeps session cookies same-site. Build it with `docker build -t careeros .` and deploy the image to a container host. Set these environment variables on the host:
+The Docker image builds the React client and serves it with Express from one HTTPS origin, which keeps session cookies same-site. Render can build the Dockerfile directly from the GitHub repository and redeploy when new commits arrive. See Render's [Docker deployment guide](https://render.com/docs/docker).
+
+### Render setup
+
+1. In Render, choose **New → Web Service**, connect GitHub, and select this repository.
+2. Set the runtime to **Docker** and use the repository-root `Dockerfile`.
+3. Set the health check path to `/api/v1/health`.
+4. Add the environment variables below in Render's service settings. Keep API keys and database credentials in Render's environment settings, never in this repository.
+5. In the Render service dashboard, open **Connect → Outbound** and copy the IP ranges for the service's region. Add those ranges to MongoDB Atlas **Network Access**. Render documents that its regular outbound ranges are shared by services in the same region; dedicated outbound IPs are a separate paid option. Avoid opening Atlas to every IP address. See [Render outbound IP addresses](https://render.com/docs/outbound-ip-addresses).
+6. Choose the compute plan after checking current billing. Render describes free instances as suitable for previews and hobby use, and says not to use them for production. See [Render's free-instance limits](https://render.com/docs/free) and [compute plans](https://render.com/docs/compute-plans).
+7. Create the service and wait for the first deploy. The health check should report both the API and database as available. Then verify signup, email verification, sign-in, resume save, and account deletion on the deployed URL.
+
+The same environment variables apply on other container hosts:
 
 - `MONGODB_URI`: Atlas connection string with the `careeros` database name.
 - `JWT_SECRET`: unique random value of at least 32 characters.
@@ -78,3 +94,5 @@ This folder is initialized as a local Git repository on the `main` branch. `.git
 The first audience is students and recent graduates. The core loop is: save a role → connect a resume → draft truthful role-specific materials → track the follow-up → record the outcome. Next improvements should come from watching a small group use that loop and noting where they get stuck.
 
 Billing is deliberately deferred until the free workflow is useful and demand is validated.
+
+The landing page currently shows a proposed Plus price of $6/month or $39/year as a pricing hypothesis for an early-career audience. Checkout, paid-plan entitlements, and payment-provider integration are not active. The current AI usage cap applies to all accounts; do not advertise a higher paid quota until plan-aware enforcement and cost limits are implemented.
