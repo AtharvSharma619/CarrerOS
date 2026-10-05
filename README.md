@@ -11,6 +11,7 @@ CareerOS gives early-career job seekers one place to prepare an application and 
 - Application workspace with status, source link, saved job description, notes, linked resume, editable cover-letter/tailoring drafts, and follow-up date.
 - Dashboard with application progress, profile completeness, and an actionable upcoming follow-up list.
 - Public interactive sample workspace with fictional data; its preview controls do not write to the API or call AI.
+- Free resume scan for PDF, DOCX, TXT, pasted text, or a saved CareerOS draft. Extraction and checks run in the browser; no account or AI request is required. Scanned-image OCR is not supported.
 - Public pricing preview for a free plan and a proposed CareerOS Plus plan. Checkout is not active and paid limits are not implemented.
 - Optional AI cover letters and role-specific resume suggestions. Outputs are editable drafts; the prompts prohibit adding qualifications or facts that are not in the user's material.
 - User-owned database queries, server-side validation, authentication/AI rate limits, account data export, and permanent account deletion.

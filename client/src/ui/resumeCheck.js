@@ -1,4 +1,4 @@
-const STOP_WORDS = new Set(`a an and are as at be by for from in into is it of on or our the their this to with you your we will work role team experience skills using use build support help develop create design across within ability strong proven responsible excellent good preferred required qualifications responsibilities company job position candidate including`).split(' ');
+const STOP_WORDS = new Set(`a an and are as at be by for from in into is it of on or our the their this to with you your we will work role team experience skills using use build support help develop create design across within ability strong proven responsible excellent good preferred required qualifications responsibilities company job position candidate including`.split(' '));
 
 export function getResumeCheck(resume = {}) {
   const content = resume.content || {};
