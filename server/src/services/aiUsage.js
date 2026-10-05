@@ -21,7 +21,7 @@ async function reserve(owner) {
   const period = currentPeriod();
   let usage;
   try {
-    usage = await AiUsage.findOneAndUpdate({ owner, period }, { $inc: { count: 1 } }, { new: true, upsert: true, setDefaultsOnInsert: true });
+    usage = await AiUsage.findOneAndUpdate({ owner, period }, { $inc: { count: 1 } }, { new: true, upsert: true });
   } catch (error) {
     if (error.code !== 11000) throw error;
     usage = await AiUsage.findOneAndUpdate({ owner, period }, { $inc: { count: 1 } }, { new: true });
