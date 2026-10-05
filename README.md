@@ -7,6 +7,7 @@ CareerOS gives early-career job seekers one place to prepare an application and 
 - Personal accounts with password hashing, rate-limited authentication, and HttpOnly session cookies.
 - Password reset by expiring, single-use emailed token; password changes revoke old sessions.
 - Resume editor with repeatable work and education entries, classic and modern print styles, browser print-to-PDF, and AI feedback.
+- Local resume health checklist with evidence from saved resume fields and optional exact-word comparison against a saved job post. This is a writing aid, not an ATS prediction; no resume text is sent to AI for this check.
 - Application workspace with status, source link, saved job description, notes, linked resume, editable cover-letter/tailoring drafts, and follow-up date.
 - Dashboard with application progress, profile completeness, and an actionable upcoming follow-up list.
 - Public interactive sample workspace with fictional data; its preview controls do not write to the API or call AI.
