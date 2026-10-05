@@ -5,12 +5,24 @@ import { requireAuth } from '../middleware/auth.js';
 
 const router = Router();
 const statuses = ['Saved', 'Applied', 'In review', 'Interview', 'Offer', 'Rejected'];
+function normalizeJobUrl(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  if (raw.length > 500) return null;
+  try {
+    const url = new URL(raw);
+    if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password) return null;
+    return url.toString();
+  } catch { return null; }
+}
 router.use(requireAuth);
 router.get('/', async (req, res, next) => { try { res.json({ applications: await Application.find({ owner: req.userId }).sort({ updatedAt: -1 }).populate('resume', 'title') }); } catch (e) { next(e); } });
 router.post('/', async (req, res, next) => {
   try {
     const company = String(req.body.company || '').trim(); const role = String(req.body.role || '').trim();
     if (!company || !role) return res.status(400).json({ error: { code: 'INVALID_INPUT', message: 'Company and role are required.' } });
+    const url = normalizeJobUrl(req.body.url);
+    if (url === null) return res.status(400).json({ error: { code: 'INVALID_JOB_URL', message: 'Enter a valid job link that starts with https:// or http://.' } });
     const status = statuses.includes(req.body.status) ? req.body.status : 'Applied';
     const resumeId = req.body.resume || null;
     if (resumeId && !await Resume.exists({ _id: resumeId, owner: req.userId })) return res.status(400).json({ error: { code: 'INVALID_RESUME', message: 'Choose one of your own resumes.' } });
@@ -18,7 +30,7 @@ router.post('/', async (req, res, next) => {
       owner: req.userId,
       company: company.slice(0, 120),
       role: role.slice(0, 120),
-      url: String(req.body.url || '').slice(0, 500),
+      url,
       notes: String(req.body.notes || '').slice(0, 3000),
       jobDescription: String(req.body.jobDescription || '').slice(0, 12000),
       resume: resumeId,
@@ -32,7 +44,12 @@ router.post('/', async (req, res, next) => {
 router.patch('/:id', async (req, res, next) => {
   try {
     const update = {};
-    for (const field of ['company', 'role', 'url', 'notes', 'appliedAt', 'followUpAt', 'jobDescription', 'coverLetter', 'tailoredSuggestions']) if (req.body[field] !== undefined) update[field] = req.body[field];
+    for (const field of ['company', 'role', 'notes', 'appliedAt', 'followUpAt', 'jobDescription', 'coverLetter', 'tailoredSuggestions']) if (req.body[field] !== undefined) update[field] = req.body[field];
+    if (req.body.url !== undefined) {
+      const url = normalizeJobUrl(req.body.url);
+      if (url === null) return res.status(400).json({ error: { code: 'INVALID_JOB_URL', message: 'Enter a valid job link that starts with https:// or http://.' } });
+      update.url = url;
+    }
     if (req.body.resume !== undefined) {
       if (req.body.resume && !await Resume.exists({ _id: req.body.resume, owner: req.userId })) return res.status(400).json({ error: { code: 'INVALID_RESUME', message: 'Choose one of your own resumes.' } });
       update.resume = req.body.resume || null;
