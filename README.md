@@ -5,6 +5,7 @@ CareerOS gives early-career job seekers one place to prepare an application and 
 ## Features
 
 - Personal accounts with password hashing, rate-limited authentication, and HttpOnly session cookies.
+- Password reset by expiring, single-use emailed token; password changes revoke old sessions.
 - Resume editor with repeatable work and education entries, classic and modern print styles, browser print-to-PDF, and AI feedback.
 - Application workspace with status, source link, saved job description, notes, linked resume, editable cover-letter/tailoring drafts, and follow-up date.
 - Dashboard with application progress, profile completeness, and an actionable upcoming follow-up list.
@@ -31,7 +32,7 @@ Requirements: Node.js 20 or newer and MongoDB. MongoDB Atlas is an easy hosted o
 
 1. Create a database user and add your current IP address to the Atlas project's IP access list. Copy the Node.js driver connection string.
 2. Copy `server/.env.example` to `server/.env` and fill in `MONGODB_URI` and a random `JWT_SECRET` of at least 32 characters. Use the `careeros` database in the URI. Keep `.env` private; it is ignored by Git. Existing local `.env` files should be preserved.
-3. Optional: add `OPENAI_API_KEY` to enable AI feedback and writing. The core account, resume, and application features work without it.
+3. Optional: add `OPENAI_API_KEY` to enable AI feedback and writing. Add `RESEND_API_KEY` and a sender in `EMAIL_FROM` to enable email verification and password recovery locally. The core account, resume, and application features work without either provider.
 4. Run `npm install` from the repository root, then `npm run dev`.
 5. Open `http://localhost:5173`. Express listens on `http://localhost:4000`.
 
@@ -53,9 +54,18 @@ Open this whole folder in VS Code using **File → Open Folder**. If the `code` 
 
 ## Deploying a private beta
 
-Host the client and API on HTTPS and MongoDB Atlas. Set production environment variables on the API host: `MONGODB_URI`, `JWT_SECRET`, `CLIENT_ORIGIN`, `NODE_ENV=production`, and optionally `OPENAI_API_KEY` / `OPENAI_MODEL`. Set `VITE_API_URL` in the client build environment to the API origin when they are hosted separately. For a cross-site client/API setup, set `COOKIE_SAME_SITE=none`; the API cookie is then marked Secure. Configure Atlas network access for the API host, not a developer laptop. Keep CORS limited to the deployed client origin.
+The Docker image builds the React client and serves it with Express from one HTTPS origin, which keeps session cookies same-site. Build it with `docker build -t careeros .` and deploy the image to a container host. Set these environment variables on the host:
 
-Before inviting the public, add password reset and account recovery, email verification or an equivalent abuse barrier, production monitoring, stronger per-account AI usage/cost limits, and a complete privacy notice explaining third-party AI processing. Verify account isolation and cookie behavior on the actual deployed domains.
+- `MONGODB_URI`: Atlas connection string with the `careeros` database name.
+- `JWT_SECRET`: unique random value of at least 32 characters.
+- `NODE_ENV=production`, `PORT` (when provided by the host), `CLIENT_ORIGIN=https://your-domain`, and `APP_BASE_URL=https://your-domain`.
+- `RESEND_API_KEY`, `REQUIRE_EMAIL_VERIFICATION=true`, and `EMAIL_FROM` on a domain verified with Resend. Production startup requires these account email settings; the app sends signup verification and password reset links through Resend's [email API](https://resend.com/docs/api-reference/emails/send-email).
+- `TRUST_PROXY_HOPS=1` when the container host sits behind one trusted reverse proxy; adjust to the host's documented proxy chain.
+- Optional `OPENAI_API_KEY` and `OPENAI_MODEL` for AI features.
+
+Configure Atlas network access for the container host, not a developer laptop. Keep the origin restricted to the deployed site. The API rate-limits sign-in, password recovery, and AI requests; the account model supports user data export and deletion.
+
+Before a wider public launch, add email verification or another signup abuse barrier, durable per-account AI usage/cost limits, production monitoring/alerts, and a complete privacy notice explaining third-party AI processing. Confirm account isolation, reset-email delivery, and cookie behavior on the deployed domain.
 
 ## GitHub portfolio setup
 

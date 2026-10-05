@@ -15,15 +15,26 @@ async function api(path, options = {}) {
     headers: { ...(options.body ? { 'Content-Type': 'application/json' } : {}), ...options.headers },
   });
   const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(data.error?.message || 'Something went wrong. Please try again.');
+  if (!response.ok) {
+    const error = new Error(data.error?.message || 'Something went wrong. Please try again.');
+    error.code = data.error?.code;
+    throw error;
+  }
   return data;
 }
 
 function App() {
   const [user, setUser] = useState(null);
   const [ready, setReady] = useState(false);
-  const [authMode, setAuthMode] = useState('login');
+  const [authMode, setAuthMode] = useState(() => {
+    const query = new URLSearchParams(window.location.search);
+    return query.has('token') ? 'reset' : query.has('verify') ? 'login' : 'landing';
+  });
   const [authError, setAuthError] = useState('');
+  const [authNotice, setAuthNotice] = useState('');
+  const [authEmail, setAuthEmail] = useState('');
+  const [verificationNeeded, setVerificationNeeded] = useState(false);
+  const [resetToken, setResetToken] = useState(() => new URLSearchParams(window.location.search).get('token') || '');
   const [authBusy, setAuthBusy] = useState(false);
   const [active, setActive] = useState('Overview');
   const [dashboard, setDashboard] = useState(null);
@@ -52,6 +63,16 @@ function App() {
   }, []);
 
   useEffect(() => {
+    const query = new URLSearchParams(window.location.search);
+    if (query.has('token')) { setReady(true); return; }
+    if (query.has('verify')) {
+      setReady(true);
+      api('/auth/verify-email', { method: 'POST', body: JSON.stringify({ token: query.get('verify') }) })
+        .then((result) => setAuthNotice(result.message))
+        .catch((err) => setAuthError(err.message))
+        .finally(() => window.history.replaceState({}, '', window.location.pathname));
+      return;
+    }
     api('/auth/me').then(({ user: current }) => setUser(current)).catch(() => {}).finally(() => setReady(true));
   }, []);
   useEffect(() => { if (user) refresh(); }, [user, refresh]);
@@ -60,10 +81,27 @@ function App() {
     event.preventDefault(); setAuthBusy(true); setAuthError('');
     const form = new FormData(event.currentTarget);
     try {
+      if (authMode === 'reset' && form.get('password') !== form.get('confirmPassword')) throw new Error('The passwords do not match.');
+      if (authMode === 'forgot') {
+        const result = await api('/auth/forgot-password', { method: 'POST', body: JSON.stringify({ email: form.get('email') }) });
+        setAuthNotice(result.message); return;
+      }
+      if (authMode === 'reset') {
+        const result = await api('/auth/reset-password', { method: 'POST', body: JSON.stringify({ token: resetToken, password: form.get('password') }) });
+        setAuthNotice(result.message); setAuthMode('login'); setResetToken(''); window.history.replaceState({}, '', window.location.pathname); return;
+      }
       const path = authMode === 'register' ? '/auth/register' : '/auth/login';
       const data = await api(path, { method: 'POST', body: JSON.stringify({ name: form.get('name'), email: form.get('email'), password: form.get('password') }) });
+      if (data.verificationRequired) { setAuthMode('login'); setVerificationNeeded(true); setAuthNotice(data.message); return; }
       setUser(data.user);
-    } catch (err) { setAuthError(err.message); }
+    } catch (err) { setAuthError(err.message); if (err.code === 'EMAIL_NOT_VERIFIED') setVerificationNeeded(true); }
+    finally { setAuthBusy(false); }
+  }
+
+  async function resendVerification() {
+    setAuthError(''); setAuthNotice(''); setAuthBusy(true);
+    try { const result = await api('/auth/resend-verification', { method: 'POST', body: JSON.stringify({ email: authEmail }) }); setAuthNotice(result.message); setVerificationNeeded(false); }
+    catch (err) { setAuthError(err.message); }
     finally { setAuthBusy(false); }
   }
 
@@ -223,7 +261,7 @@ function App() {
   }
 
   if (!ready) return <div className="loading-screen"><div className="brand-mark"><Target size={18}/></div><span>Getting your workspace ready…</span></div>;
-  if (!user) return <div className="auth-page"><a className="brand auth-brand" href="#home"><span className="brand-mark"><Target size={18}/></span><span>career<span className="brand-light">OS</span></span></a><div className="auth-card"><div className="section-kicker">A CALMER JOB SEARCH</div><h1>{authMode === 'login' ? 'Welcome back.' : 'Make your next move.'}</h1><p>{authMode === 'login' ? 'Sign in to pick up where you left off.' : 'Create your free workspace and get organized.'}</p><form onSubmit={submitAuth} className="stack-form">{authMode === 'register' && <label>Your name<input name="name" autoComplete="name" minLength="2" maxLength="80" required placeholder="Alex Smith"/></label>}<label>Email address<input name="email" type="email" autoComplete="email" required placeholder="you@example.com"/></label><label>Password<input name="password" type="password" autoComplete={authMode === 'login' ? 'current-password' : 'new-password'} minLength="8" required placeholder="At least 8 characters"/></label>{authError && <div className="form-error">{authError}</div>}<button className="primary-button auth-submit" disabled={authBusy}>{authBusy ? 'Please wait…' : authMode === 'login' ? 'Sign in' : 'Create account'}<ArrowRight size={15}/></button></form><div className="auth-switch">{authMode === 'login' ? 'New to CareerOS?' : 'Already have an account?'} <button onClick={() => { setAuthError(''); setAuthMode(authMode === 'login' ? 'register' : 'login'); }}>{authMode === 'login' ? 'Create an account' : 'Sign in'}</button></div><div className="auth-note"><Check size={14}/> Your career information stays private to your account.</div></div><div className="auth-side-note">Make a little progress, every day.</div></div>;
+  if (!user) return <AuthScreen mode={authMode} setMode={(mode) => { setAuthError(''); setAuthNotice(''); setVerificationNeeded(false); setAuthMode(mode); }} onSubmit={submitAuth} error={authError} notice={authNotice} busy={authBusy} email={authEmail} setEmail={setAuthEmail} verificationNeeded={verificationNeeded} onResend={resendVerification}/>;
 
   const today = new Intl.DateTimeFormat('en', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }).format(new Date()).toUpperCase();
   const stats = dashboard?.stats || { activeApplications: 0, interviews: 0, profileStrength: 0, resumeCount: 0, applicationCount: 0 };
@@ -277,13 +315,70 @@ function App() {
 
     {modal === 'application-ai' && <div className="modal-backdrop" onClick={() => setModal('application-details')}><div className="modal wide-modal" role="dialog" aria-modal="true" aria-labelledby="application-ai-title" onClick={(event) => event.stopPropagation()}><button className="modal-close" onClick={() => setModal('application-details')} aria-label="Close"><X size={18}/></button><div className="stat-icon lilac"><WandSparkles size={18}/></div><div className="section-kicker ai-kicker">SAVED WITH THIS OPPORTUNITY</div><h2 id="application-ai-title">{applicationAiKind === 'cover-letter' ? 'Cover letter draft' : 'Resume tailoring suggestions'}</h2><p className="modal-intro">Review and edit the draft before using it. AI suggestions are saved with this application.</p>{aiBusy && <div className="ai-loading"><span className="live-dot"/> Working on a thoughtful draft…</div>}{aiError && <div className="form-error ai-error">{aiError}</div>}{aiResult && <div className="ai-result"><div className="result-heading">DRAFT · REVIEW BEFORE USING <button className="secondary-button" onClick={() => navigator.clipboard?.writeText(aiResult)}>Copy text</button></div><pre>{aiResult}</pre></div>}<div className="form-actions"><button className="secondary-button" onClick={() => setModal('application-details')}>Back to opportunity</button></div></div></div>}
 
-    {(modal === 'analyze-result' || modal === 'tailor' || modal === 'cover') && <div className="modal-backdrop" onClick={() => setModal('')}><div className="modal wide-modal" role="dialog" aria-modal="true" aria-labelledby="ai-title" onClick={(event) => event.stopPropagation()}><button className="modal-close" onClick={() => setModal('')} aria-label="Close"><X size={18}/></button><div className="stat-icon lilac"><WandSparkles size={18}/></div><div className="section-kicker ai-kicker">AI CAREER TOOLS</div><h2 id="ai-title">{modal === 'cover' ? 'Draft a cover letter' : modal === 'tailor' ? 'Tailor your resume' : 'Your resume feedback'}</h2><p className="modal-intro">AI uses your resume text to make suggestions. Review everything before using it; it should never add experience you don’t have.</p>{modal !== 'analyze-result' && <>{modal === 'cover' && <div className="form-grid"><label>Company<input value={applicationDraft.company} onChange={(e) => setApplicationDraft({ ...applicationDraft, company: e.target.value })} placeholder="Company name"/></label><label>Role<input value={applicationDraft.role} onChange={(e) => setApplicationDraft({ ...applicationDraft, role: e.target.value })} placeholder="Role title"/></label></div>}<label>Job description<textarea className="ai-job-input" rows="5" value={jobDescription} onChange={(e) => setJobDescription(e.target.value)} placeholder="Paste the job description here…"/></label><button className="primary-button ai-run" disabled={aiBusy} onClick={modal === 'cover' ? makeCoverLetter : () => runAi('tailor', resumeDraft)}>{aiBusy ? 'Working…' : modal === 'cover' ? 'Draft with my resume' : 'Get tailoring suggestions'}<Sparkles size={15}/></button></>}{aiBusy && <div className="ai-loading"><span className="live-dot"/> Working on a thoughtful draft…</div>}{aiError && <div className="form-error ai-error">{aiError}</div>}{aiResult && <div className="ai-result"><div className="result-heading">DRAFT · REVIEW BEFORE USING <button className="secondary-button" onClick={() => navigator.clipboard?.writeText(aiResult)}>Copy text</button></div><pre>{aiResult}</pre></div>}</div></div>}
+    {(modal === 'analyze-result' || modal === 'tailor' || modal === 'cover') && <div className="modal-backdrop" onClick={() => setModal('')}><div className="modal wide-modal" role="dialog" aria-modal="true" aria-labelledby="ai-title" onClick={(event) => event.stopPropagation()}><button className="modal-close" onClick={() => setModal('')} aria-label="Close"><X size={18}/></button><div className="stat-icon lilac"><WandSparkles size={18}/></div><div className="section-kicker ai-kicker">AI CAREER TOOLS</div><h2 id="ai-title">{modal === 'cover' ? 'Draft a cover letter' : modal === 'tailor' ? 'Tailor your resume' : 'Your resume feedback'}</h2><p className="modal-intro">When you generate a draft, your resume and job description are sent to the AI provider configured for this app. Review suggestions before using them; they should never add experience you don’t have.</p>{modal !== 'analyze-result' && <>{modal === 'cover' && <div className="form-grid"><label>Company<input value={applicationDraft.company} onChange={(e) => setApplicationDraft({ ...applicationDraft, company: e.target.value })} placeholder="Company name"/></label><label>Role<input value={applicationDraft.role} onChange={(e) => setApplicationDraft({ ...applicationDraft, role: e.target.value })} placeholder="Role title"/></label></div>}<label>Job description<textarea className="ai-job-input" rows="5" value={jobDescription} onChange={(e) => setJobDescription(e.target.value)} placeholder="Paste the job description here…"/></label><button className="primary-button ai-run" disabled={aiBusy} onClick={modal === 'cover' ? makeCoverLetter : () => runAi('tailor', resumeDraft)}>{aiBusy ? 'Working…' : modal === 'cover' ? 'Draft with my resume' : 'Get tailoring suggestions'}<Sparkles size={15}/></button></>}{aiBusy && <div className="ai-loading"><span className="live-dot"/> Working on a thoughtful draft…</div>}{aiError && <div className="form-error ai-error">{aiError}</div>}{aiResult && <div className="ai-result"><div className="result-heading">DRAFT · REVIEW BEFORE USING <button className="secondary-button" onClick={() => navigator.clipboard?.writeText(aiResult)}>Copy text</button></div><pre>{aiResult}</pre></div>}</div></div>}
 
     {modal === 'ai-choice' && <div className="modal-backdrop" onClick={() => setModal('')}><div className="modal" role="dialog" aria-modal="true" aria-labelledby="choice-title" onClick={(event) => event.stopPropagation()}><button className="modal-close" onClick={() => setModal('')} aria-label="Close"><X size={18}/></button><div className="stat-icon lilac"><Sparkles size={18}/></div><h2 id="choice-title">Give your resume a closer look</h2><p className="modal-intro">Choose a helpful next step. Suggestions are drafts for you to review.</p><button className="choice-button" onClick={() => runAi('analyze', resumeDraft)}><span><b>Review my resume</b><small>Get clarity, impact, and ATS readability feedback</small></span><ArrowRight size={15}/></button><button className="choice-button" onClick={() => { setModal('tailor'); setAiResult(''); setAiError(''); }}><span><b>Tailor to a job</b><small>Compare your resume with a job description</small></span><ArrowRight size={15}/></button></div></div>}
 
     {modal === 'preview' && resumeDraft && <div className="modal-backdrop preview-backdrop" onClick={() => setModal('')}><div className="print-preview" role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()}><div className="preview-toolbar"><span>Resume preview</span><div><button className="secondary-button" onClick={() => window.print()}>Print / Save PDF</button><button className="modal-close" onClick={() => setModal('')} aria-label="Close"><X size={18}/></button></div></div><ResumePreview resume={resumeDraft}/></div></div>}
     {modal === 'help' && <div className="modal-backdrop" onClick={() => setModal('')}><div className="modal" role="dialog" aria-modal="true" aria-labelledby="help-title"><button className="modal-close" onClick={() => setModal('')} aria-label="Close"><X size={18}/></button><div className="stat-icon mint"><CircleHelp size={18}/></div><h2 id="help-title">CareerOS help & privacy</h2><p className="modal-intro">Your account, resumes, and applications are private. When you request AI help, the resume and job description are sent to the AI provider configured by this app. Review generated suggestions before using them. You can export or permanently delete your data below.</p><div className="account-actions"><button className="secondary-button" onClick={downloadAccountData}>Download my data</button><button className="danger-button" onClick={deleteAccount}>Delete my account</button></div><button className="primary-button help-done" onClick={() => setModal('')}>Done <Check size={15}/></button></div></div>}
   </div>;
+}
+
+function AuthScreen({ mode, setMode, onSubmit, error, notice, busy, email, setEmail, verificationNeeded, onResend }) {
+  if (mode === 'landing') return <LandingPage setMode={setMode}/>;
+  const heading = mode === 'register' ? 'Make your next move.' : mode === 'forgot' ? 'Reset your password.' : mode === 'reset' ? 'Choose a new password.' : 'Welcome back.';
+  const description = mode === 'register' ? 'Create your free workspace and get organized.' : mode === 'forgot' ? 'We’ll email you a secure link if an account matches.' : mode === 'reset' ? 'Choose a new password for your CareerOS account.' : 'Sign in to pick up where you left off.';
+  const submitLabel = mode === 'register' ? 'Create account' : mode === 'forgot' ? 'Send reset link' : mode === 'reset' ? 'Save new password' : 'Sign in';
+
+  return (
+    <div className="auth-page">
+      <a className="brand auth-brand" href="#home">
+        <span className="brand-mark"><Target size={18}/></span>
+        <span>career<span className="brand-light">OS</span></span>
+      </a>
+      <div className="auth-card">
+        <div className="section-kicker">A CALMER JOB SEARCH</div>
+        <h1>{heading}</h1>
+        <p>{description}</p>
+        <form onSubmit={onSubmit} className="stack-form">
+          {mode === 'register' && <label>Your name<input name="name" autoComplete="name" minLength="2" maxLength="80" required placeholder="Alex Smith"/></label>}
+          {mode !== 'reset' && <label>Email address<input name="email" type="email" autoComplete="email" required placeholder="you@example.com" value={email} onChange={(event) => setEmail(event.target.value)}/></label>}
+          {mode !== 'forgot' && <label>{mode === 'reset' ? 'New password' : 'Password'}<input name="password" type="password" autoComplete={mode === 'login' ? 'current-password' : 'new-password'} minLength="8" maxLength="128" required placeholder="At least 8 characters"/></label>}
+          {mode === 'reset' && <label>Confirm new password<input name="confirmPassword" type="password" autoComplete="new-password" minLength="8" maxLength="128" required placeholder="Enter the new password again"/></label>}
+          {notice && <div className="auth-notice" role="status">{notice}</div>}
+          {error && <div className="form-error" role="alert">{error}</div>}
+          <button className="primary-button auth-submit" disabled={busy}>{busy ? 'Please wait…' : submitLabel}<ArrowRight size={15}/></button>
+        </form>
+        {mode === 'login' && <button className="auth-link forgot-link" onClick={() => setMode('forgot')}>Forgot password?</button>}
+        {verificationNeeded && <button className="auth-link" disabled={busy} onClick={onResend}>Resend verification email</button>}
+        {mode === 'forgot' && <div className="auth-switch"><button onClick={() => setMode('login')}>Back to sign in</button></div>}
+        {mode === 'reset' && <div className="auth-switch">Reset link not working? <button onClick={() => setMode('forgot')}>Request another</button></div>}
+        {mode === 'login' && <div className="auth-switch">New to CareerOS? <button onClick={() => setMode('register')}>Create an account</button></div>}
+        {mode === 'register' && <div className="auth-switch">Already have an account? <button onClick={() => setMode('login')}>Sign in</button></div>}
+        <div className="auth-note"><Check size={14}/> Your career information stays private to your account.</div>
+      </div>
+      <div className="auth-side-note">Make a little progress, every day.</div>
+    </div>
+  );
+}
+
+function LandingPage({ setMode }) {
+  return (
+    <div className="landing-page">
+      <header className="landing-header">
+        <a className="brand" href="#home"><span className="brand-mark"><Target size={18}/></span><span>career<span className="brand-light">OS</span></span></a>
+        <div><button className="landing-signin" onClick={() => setMode('login')}>Sign in</button><button className="primary-button" onClick={() => setMode('register')}>Create free account <ArrowRight size={15}/></button></div>
+      </header>
+      <main>
+        <section className="landing-hero">
+          <div className="landing-copy"><div className="landing-eyebrow"><span className="live-dot"/> YOUR JOB SEARCH, WITH A LITTLE MORE CLARITY</div><h1>Make your next move<br/>feel <em>more like yours.</em></h1><p>Keep applications, resumes, and follow-ups in one thoughtful workspace. Show up prepared for each opportunity, one step at a time.</p><div className="landing-cta"><button className="primary-button" onClick={() => setMode('register')}>Start your free workspace <ArrowRight size={15}/></button><span>No card needed · Your account is private</span></div></div>
+          <div className="landing-preview" aria-label="CareerOS workspace preview"><div className="preview-window"><div className="preview-window-top"><span/><span/><span/><b>YOUR SEARCH AT A GLANCE</b></div><div className="preview-window-body"><div className="preview-welcome">A little progress adds up<span>.</span><small>Here’s where your search stands.</small></div><div className="preview-stat-row"><div><small>ACTIVE APPLICATIONS</small><b>08</b></div><div><small>INTERVIEWS</small><b>03</b></div><div><small>PROFILE STRENGTH</small><b>72%</b></div></div><div className="preview-job-row"><span className="preview-company">L</span><div><b>Product Designer</b><small>Linear · Interview</small></div><span className="preview-tag">THU, 10:30</span></div><div className="preview-job-row"><span className="preview-company neutral">N</span><div><b>UX Designer</b><small>Notion · Applied</small></div><span className="preview-tag muted">FOLLOW UP</span></div><div className="preview-progress"><Sparkles size={14}/><div><b>Your next step, saved.</b><small>Resume and follow-up stay with this opportunity.</small></div></div></div></div><div className="landing-floating"><span className="landing-check"><Check size={14}/></span><span><b>One place for the moving parts</b><small>Keep your search feeling manageable</small></span></div></div>
+        </section>
+        <section className="landing-features" id="how-it-works"><div className="landing-section-heading"><div className="section-kicker">A WORKSPACE THAT MOVES WITH YOU</div><h2>From saved role to next step.</h2></div><div className="landing-feature-grid"><article><span className="feature-icon"><BriefcaseBusiness size={18}/></span><h3>Keep each opportunity together</h3><p>Save the job description, your notes, chosen resume, and a clear follow-up date.</p></article><article><span className="feature-icon"><FileText size={18}/></span><h3>Tell your story with care</h3><p>Build a readable resume, then create role-specific drafts that stay grounded in your experience.</p></article><article><span className="feature-icon"><Target size={18}/></span><h3>Make progress visible</h3><p>See your pipeline, interviews, and upcoming follow-ups without losing your place.</p></article></div></section>
+      </main>
+      <footer className="landing-footer"><span>CareerOS · Made for the journey</span><span>Your information belongs to you. Export or delete it from your account.</span></footer>
+    </div>
+  );
 }
 
 function ResumePreview({ resume }) {
